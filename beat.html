@@ -5,26 +5,41 @@ Game
 </title>
 <style type="text/css">
 </style>
-<article>
-  <div id="holder"></div> 
+
+</head>
+<body>
+<center>
+  <canvas id="holder" width="300" height="300"></canvas> 
+  </center>
   <p id="status">File API &amp; FileReader API not supported</p>
   <p>Drag an image from your desktop on to the drop zone above to see the browser read the contents of the file and use it as the background - without uploading the file to any servers.</p>
-</article>
 <style>
 #holder { border: 10px dashed #ccc; width: 300px; height: 300px; margin: 20px auto;}
 #holder.hover { border: 10px dashed #333; }
 </style>
 <script type="text/javascript">
-
+window.onload = init();
 var source;
 var context = new (window.AudioContext || window.webkitAudioContext)();
 var processor;
 var analyser;
 var xhr;
 var threshold = 0;
-var beatDecayRate = .994;
+var beatDecayRate = .99;
 var maxHoldTime = 5;
 var holdTime = maxHoldTime;
+var isSpacePressed = false;
+var isOrange = true;
+var noteArr = [];
+var theNoteWidth = 15;
+var noteSpeed =5;
+var playerSize = 30;
+var numItrs = 0;
+function init() {
+    window.addEventListener('keydown',doKeyDown,true);
+    window.addEventListener('keyup',doKeyUp,true);
+    drawPlayer('orange');
+}
 function initAudio(data) {
     source = context.createBufferSource();
     
@@ -49,16 +64,42 @@ function createAudio() {
 
     analyser = context.createAnalyser();
 
-    source.connect(context.destination);
-    source.connect(analyser);
 
     analyser.connect(processor);
-    processor.connect(context.destination);
-
+    var gainNode = context.createGain();
+    source.connect(gainNode);
+    source.connect(analyser);
+    gainNode.connect(context.destination);
+    gainNode.gain.value = 0.0;
+    processor.connect(gainNode);
     source.noteOn(0);
     setTimeout(disconnect, source.buffer.duration * 1000);
+    console.log('audio1');
+    
+}
+function createAudio2() {
+    source.connect(gainNode);
+    source.connect(analyser);
+    processor.connect(gainNode);
+    source.noteOn(0);
+    setTimeout(disconnect, source.buffer.duration * 1000);
+    console.log('audio2');
     
     
+}
+function doKeyDown(evt)
+{
+    if (evt.keyCode == 32) {
+        if (!isSpacePressed) {
+            togglePlayer();
+        }
+        isSpacePressed = true;
+    }
+}
+function doKeyUp(evt) {
+    if (evt.keyCode == 32) {
+        isSpacePressed = false;
+    }
 }
 function getAverageVolume(array) {
         var values = 0;
@@ -89,17 +130,20 @@ function processAudio(e) {
     var average = getAverageVolume(array);
     //console.log(average);
     holdTime--;
+    
     if (holdTime <= 0) {
         if (average > threshold) {
             threshold = average;
-            console.log("beat!");
+            beat();
             console.log(average);
+            maxHoldTime = 1000/threshold;
             holdTime = maxHoldTime;
         }
         else {
             threshold *= beatDecayRate;
         }
     }
+    redraw();
 }
 
 function dropEvent(evt) {
@@ -137,15 +181,184 @@ function dragOver(evt) {
     return false;
 }
 
+function beat() {
+    console.log("beat!");
+    createParticle();
+}
+function createParticle() {
+    var size = document.getElementById('holder');
+    var origin = {
+        x:size.width/2,
+        y:size.height/2,
+    };
+    var direction = Math.floor(Math.random() * 4);
+    var color = Math.floor(Math.random() * 2);
+    
+    
+     // Note dimensions
+    if (direction == 0 || direction == 2) {
+        noteWidth = theNoteWidth;
+        noteHeight = theNoteWidth;
+    } else {
+        noteWidth = theNoteWidth;
+        noteHeight = theNoteWidth;
+    }
+    var x =0;
+    var y =0;
+    // Note positions
+    if (direction == 0) {
+        x = origin.x + size.width/2;
+        y = origin.y;
+//        animationTarget = CGPointMake(self.square.center.x, self.square.center.y - self.squareDim/2);
+    } else if (direction == 1) {
+        x = origin.x;
+        y = origin.y - size.height/2;
+  //      animationTarget = CGPointMake(self.square.center.x + self.squareDim/2, self.square.center.y);
+    } else if (direction == 2) {
+        x = origin.x - size.width/2;
+        y = origin.y;
+    //    animationTarget = CGPointMake(self.square.center.x, self.square.center.y + self.squareDim/2);
+    } else {
+        x = origin.x;
+        y = origin.y + size.height/2;
+      //  animationTarget = CGPointMake(self.square.center.x - self.squareDim/2, self.square.center.y);
+    }
+    var note = {
+        direction:direction,
+        color:color,
+        duration:1,
+        x:x,
+        y:y,
+        width:noteWidth,
+        height:noteHeight,
+    }
+    console.log(note);
+    
+    var canvas = document.getElementById('holder');
+    var context = canvas.getContext('2d');
+    var centerX = canvas.width / 2;
+    var centerY = canvas.height / 2;
+    var radius = 30;
+
+    context.beginPath();
+    context.rect(x-noteWidth/2, y-noteWidth/2, noteWidth, noteWidth);
+    context.fillStyle = (note.color == 0) ? 'orange' : 'purple';
+    context.fill();
+    context.lineWidth = 5;
+    context.strokeStyle = '#003300';
+    context.stroke();
+    noteArr.push(note);
+}
+function updateNotes() {
+    for (var i = noteArr.length - 1; i >= 0; i--) {
+        var note = noteArr[i];
+        if (note.direction == 0) {
+            note.x-= noteSpeed;
+        }
+        else if (note.direction == 1) {
+            note.y+= noteSpeed;
+        }
+        else if (note.direction == 2) {
+            note.x += noteSpeed;
+        }
+        else {
+            note.y -= noteSpeed;
+        }
+        console.log("a");
+        drawNote(note);
+        checkCollision(note);
+    }
+}
+function checkCollision(note) {
+    var size = document.getElementById('holder');
+    var origin = {
+        x:size.width/2,
+        y:size.height/2,
+    };
+    var didCollide = false;
+    if (note.direction == 0) {
+        if (note.x - note.width /2 <= origin.x + playerSize) {
+            didCollide = true;
+        }
+    }
+    else if (note.direction == 1) {
+        if (note.y + note.height/2>= origin.y - playerSize) {
+            didCollide = true;        
+        }
+    }
+    else if (note.direction == 2) {
+        if (note.x + note.width/2>= origin.x - playerSize) {
+            didCollide = true;
+        }
+    }
+    else {
+        if (note.y - note.height/2<= origin.y + playerSize) {
+            didCollide = true;            
+        }
+    }
+    if (didCollide) {
+        noteArr.shift();
+        console.log('foo '+numItrs);
+    }
+}
+function drawNote(note) {
+    var canvas = document.getElementById('holder');
+    var context = canvas.getContext('2d');
+    var centerX = canvas.width / 2;
+    var centerY = canvas.height / 2;
+    var radius = 30;
+
+    context.beginPath();
+    context.rect(note.x-note.width/2, note.y-note.width/2, note.width, note.width);
+    context.fillStyle = (note.color == 0) ? 'orange' : 'purple';
+    context.fill();
+    context.lineWidth = 3;
+    context.strokeStyle = '#000000';
+    context.stroke();
+}
+function togglePlayer() {
+    console.log("toggling player");
+    if (isOrange) {
+        drawPlayer('purple');
+    }
+    else {
+        drawPlayer('orange');
+    }
+    isOrange = !isOrange;
+}
+function redraw() {
+    numItrs++;
+    var canvas = document.getElementById('holder');
+    canvas.width = canvas.width;
+    if (isOrange) {
+        drawPlayer('orange');
+    }
+    else {
+        drawPlayer('purple');
+    }
+    updateNotes();
+}
+function drawPlayer(color) {
+
+    var canvas = document.getElementById('holder');
+    var context = canvas.getContext('2d');
+    var centerX = canvas.width / 2;
+    var centerY = canvas.height / 2;
+    var radius = playerSize;
+
+    context.beginPath();
+    context.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+    context.fillStyle = color;
+    context.fill();
+    context.lineWidth = 5;
+    context.strokeStyle = '#003300';
+    context.stroke();
+}
 var dropArea = document.getElementById('holder');
 dropArea.addEventListener('drop', dropEvent, false);
 dropArea.addEventListener('dragover', dragOver, false);
-
 </script>
-</head>
-<body>
-<!-- Lets make a simple snake game -->
-<canvas id="canvas" width="450" height="450"></canvas>
+
 
 <!-- Jquery -->
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
