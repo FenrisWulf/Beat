@@ -12,6 +12,9 @@ Game
 <font face="franklin gothic medium">
 <h1>
 Score: <label id="score">0</label>
+<align = "right">
+Combo: <label id="combo">0</label>
+</align>
 </div>
 <center>
   <canvas id="holder" width="300" height="300"></canvas> 
@@ -20,6 +23,12 @@ Score: <label id="score">0</label>
 #holder { border: 10px dashed #ccc; width: 300px; height: 300px; margin: 20px auto;}
 #holder.hover { border: 10px dashed #333; }
 </style>
+Instructions: <br>
+-Drag and drop any song from your computer into the square.<br>
+-Hit space to toggle your color.<br>
+-Be the same color as the squares when they hit you.<br><br>
+
+A game by FenrisWulf
 <script type="text/javascript">
 window.onload = init();
 var source;
@@ -440,6 +449,8 @@ function redraw() {
         $("#score").text(Math.round(scoreOnScreen));
        
     }
+    $("#combo").text(combo);
+     
 }
 function drawPlayer(color) {
 
