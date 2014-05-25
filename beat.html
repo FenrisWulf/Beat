@@ -16,114 +16,113 @@ Game
 </style>
 <script type="text/javascript">
 
-window.onload = init;
-var context;
-var bufferLoader;
-function BufferLoader(context, urlList, callback) {
-  this.context = context;
-  this.urlList = urlList;
-  this.onload = callback;
-  this.bufferList = new Array();
-  this.loadCount = 0;
+var context = new (window.AudioContext || window.webkitAudioContext)();
+var source;
+var processor;
+var analyser;
+var xhr;
+
+function initAudio(data) {
+    source = context.createBufferSource();
+    
+    if(context.decodeAudioData) {
+        context.decodeAudioData(data, function(buffer) {
+            source.buffer = buffer;
+            createAudio();
+        }, function(e) {
+            console.log(e);
+        });
+    } else {
+        source.buffer = context.createBuffer(data, false /*mixToMono*/);
+        createAudio();
+       }
+    
+    
 }
 
-BufferLoader.prototype.loadBuffer = function(url, index) {
-  // Load buffer asynchronously
-  var request = new XMLHttpRequest();
-  request.open("GET", url, true);
-  request.responseType = "arraybuffer";
+function createAudio() {
+    processor = context.createJavaScriptNode(2048 /*bufferSize*/, 1 /*num inputs*/, 1 /*num outputs*/); 
+    processor.onaudioprocess = processAudio;
 
-  var loader = this;
+    analyser = context.createAnalyser();
 
-  request.onload = function() {
-    // Asynchronously decode the audio file data in request.response
-    loader.context.decodeAudioData(
-      request.response,
-      function(buffer) {
-        if (!buffer) {
-          alert('error decoding file data: ' + url);
-          return;
+    source.connect(context.destination);
+    source.connect(analyser);
+
+    analyser.connect(processor);
+    processor.connect(context.destination);
+
+    source.noteOn(0);
+    setTimeout(disconnect, source.buffer.duration * 1000);
+}
+
+function disconnect() {
+    source.noteOff(0);
+    source.disconnect(0);
+    processor.disconnect(0);
+    analyser.disconnect(0);
+}
+
+function processAudio(e) {
+    var freqByteData = new Uint8Array(analyser.frequencyBinCount);
+    console.log(freqByteData);
+    console.log(e.currentTime);
+    
+}
+
+function dropEvent(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    
+    var droppedFiles = evt.dataTransfer.files;
+    
+    /*
+    var formData = new FormData();
+    
+    for(var i = 0; i < droppedFiles.length; ++i) {
+        var file = droppedFiles[i];
+        
+        files.append(file.name, file);
+    }
+    
+    xhr = new XMLHttpRequest();
+    xhr.open("POST", settings.url);  
+    xhr.onreadystatechange = handleResult;
+    xhr.send(formData);
+    */
+    
+    var reader = new FileReader();
+    
+    reader.onload = function(fileEvent) {
+        var data = fileEvent.target.result;
+        initAudio(data);
+    }
+    
+    reader.readAsArrayBuffer(droppedFiles[0]);
+}
+
+function handleResult() {
+    if (xhr.readyState == 4 /* complete */) {
+        switch(xhr.status) {
+            case 200: /* Success */
+                initAudio(request.response);
+                break;
+            default:
+                break;
         }
-        loader.bufferList[index] = buffer;
-        if (++loader.loadCount == loader.urlList.length)
-          loader.onload(loader.bufferList);
-      },
-      function(error) {
-        console.error('decodeAudioData error', error);
-      }
-    );
-  }
-
-  request.onerror = function() {
-    alert('BufferLoader: XHR error');
-  }
-
-  request.send();
+        xhr = null;
+    }      
 }
 
-BufferLoader.prototype.load = function() {
-  for (var i = 0; i < this.urlList.length; ++i)
-  this.loadBuffer(this.urlList[i], i);
+function dragOver(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    return false;
 }
 
-
-function init() {
- 
-}
-
-function finishedLoading(bufferList) {
-  // Create two sources and play them both together.
-  
-  var source1 = context.createBufferSource();
-  var source2 = context.createBufferSource();
-  source1.buffer = bufferList[0];
-
-  source1.connect(context.destination);
-  source1.start(0);
-  console.log('b');
-}
-
-var holder = document.getElementById('holder'),
-    state = document.getElementById('status');
-
-if (typeof window.FileReader === 'undefined') {
-  state.className = 'fail';
-} else {
-  state.className = 'success';
-  state.innerHTML = 'File API & FileReader available';
-}
- 
-holder.ondragover = function () { this.className = 'hover'; return false; };
-holder.ondragend = function () { this.className = ''; return false; };
-holder.ondrop = function (e) {
-  this.className = '';
-  e.preventDefault();
-
-  var file = e.dataTransfer.files[0],
-      reader = new FileReader();
-  reader.onload = function (event) {
-    console.log(event.target);
-    holder.style.background = 'url(' + event.target.result + ') no-repeat center';
-  };
-  console.log(file);
-  reader.readAsDataURL(file);
-    console.log(file.mozFullPath)
-  // Fix up prefixing
-  window.AudioContext = window.AudioContext || window.webkitAudioContext;
-  context = new AudioContext();
-
-  bufferLoader = new BufferLoader(
-    context,
-    [
-      file
-    ],
-    finishedLoading
-    );
-
-  bufferLoader.load();
-  return false;
-};
-
+var dropArea = document.getElementById('holder');
+dropArea.addEventListener('drop', dropEvent, false);
+dropArea.addEventListener('dragover', dragOver, false);
 </script>
 </head>
 <body>
