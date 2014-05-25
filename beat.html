@@ -16,12 +16,15 @@ Game
 </style>
 <script type="text/javascript">
 
-var context = new (window.AudioContext || window.webkitAudioContext)();
 var source;
+var context = new (window.AudioContext || window.webkitAudioContext)();
 var processor;
 var analyser;
 var xhr;
-
+var threshold = 0;
+var beatDecayRate = .994;
+var maxHoldTime = 5;
+var holdTime = maxHoldTime;
 function initAudio(data) {
     source = context.createBufferSource();
     
@@ -54,8 +57,23 @@ function createAudio() {
 
     source.noteOn(0);
     setTimeout(disconnect, source.buffer.duration * 1000);
+    
+    
 }
-
+function getAverageVolume(array) {
+        var values = 0;
+        var average;
+ 
+        var length = array.length;
+ 
+        // get all the frequency amplitudes
+        for (var i = 0; i < length; i++) {
+            values += array[i];
+        }
+ 
+        average = values / length;
+        return average;
+    }
 function disconnect() {
     source.noteOff(0);
     source.disconnect(0);
@@ -65,9 +83,23 @@ function disconnect() {
 
 function processAudio(e) {
     var freqByteData = new Uint8Array(analyser.frequencyBinCount);
-    console.log(freqByteData);
-    console.log(e.currentTime);
-    
+    // get the average, bincount is fftsize / 2
+    var array =  new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(array);
+    var average = getAverageVolume(array);
+    //console.log(average);
+    holdTime--;
+    if (holdTime <= 0) {
+        if (average > threshold) {
+            threshold = average;
+            console.log("beat!");
+            console.log(average);
+            holdTime = maxHoldTime;
+        }
+        else {
+            threshold *= beatDecayRate;
+        }
+    }
 }
 
 function dropEvent(evt) {
@@ -75,21 +107,6 @@ function dropEvent(evt) {
     evt.preventDefault();
     
     var droppedFiles = evt.dataTransfer.files;
-    
-    /*
-    var formData = new FormData();
-    
-    for(var i = 0; i < droppedFiles.length; ++i) {
-        var file = droppedFiles[i];
-        
-        files.append(file.name, file);
-    }
-    
-    xhr = new XMLHttpRequest();
-    xhr.open("POST", settings.url);  
-    xhr.onreadystatechange = handleResult;
-    xhr.send(formData);
-    */
     
     var reader = new FileReader();
     
@@ -123,6 +140,7 @@ function dragOver(evt) {
 var dropArea = document.getElementById('holder');
 dropArea.addEventListener('drop', dropEvent, false);
 dropArea.addEventListener('dragover', dragOver, false);
+
 </script>
 </head>
 <body>
